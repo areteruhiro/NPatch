@@ -453,17 +453,32 @@ public class NPatch {
         property.setPermissionMapper(new PermissionMapper() {
             @Override
             public String map(PermissionType type, String permission) {
-                if (permission.startsWith(originPackage)){
-                    assert newPackage != null;
-                    return permission.replaceFirst(originPackage, newPackage);
-                }
-                if (permission.startsWith("android")
-                        || permission.startsWith("com.android")){
+                if (permission == null || permission.isEmpty()) {
                     return permission;
                 }
+                if (permission.startsWith(originPackage)) {
+                    return permission.replaceFirst(originPackage, newPackage);
+                }
+
+                if (
+                        permission.startsWith("android.") ||
+                                permission.startsWith("com.android.") ||
+                                permission.startsWith("com.google.android.") ||
+                                permission.startsWith("com.google.firebase.") ||
+                                permission.startsWith("com.huawei.") ||
+                                permission.startsWith("com.sonymobile.")
+                ) {
+                    return permission;
+                }
+
+                if (type == PermissionType.USES_PERMISSION) {
+                    return permission;
+                }
+
                 return newPackage + "_" + permission;
             }
         });
+
         property.setAuthorityMapper(new AttributeMapper<String>() {
             @Override
             public String map(String value) {
