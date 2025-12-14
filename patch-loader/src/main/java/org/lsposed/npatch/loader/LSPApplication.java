@@ -246,7 +246,9 @@ public class LSPApplication {
                     context.getClassLoader().loadClass(config.appComponentFactory);
                 } catch (Throwable e) {
                     Log.w(TAG, "Original AppComponentFactory not found: " + config.appComponentFactory, e);
-                    appInfo.appComponentFactory = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        appInfo.appComponentFactory = null;
+                    }
                 }
             }
             Log.i(TAG, "createLoadedApkWithContext cost: " + (System.currentTimeMillis() - timeStart) + "ms");
