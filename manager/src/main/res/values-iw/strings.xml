@@ -11,7 +11,7 @@
     <string name="shizuku_available">שירות שיזוקו זמין</string>
     <string name="shizuku_unavailable">שירות Shizuku לא מחובר</string>
     <string name="screen_repo">ריפו</string>
-    <string name="screen_logs">יומנים</string>
+
     <string name="off">כבוי</string>
     <string name="error_unknown">שגיאה לא ידועה</string>
     <!-- Home Screen -->
@@ -25,7 +25,7 @@
     <string name="home_info_copied">הועתק ללוח</string>
     <string name="home_support">תמיכה</string>
     <string name="home_description">NPatch היא מסגרת חינמית ללא שורש Xposed המבוססת על ליבת LSPosed.</string>
-    <string name="home_view_source_code"><![CDATA[צפה בקוד המקור ב %1$s<br/>הצטרף לערוץ %2$s שלנו]]></string>
+    <string name="about_view_source_code"><![CDATA[צפה בקוד המקור ב %1$s]]></string>
     <!-- Manage Screen -->
     <string name="screen_manage">לנהל</string>
     <string name="manage_loading">טוען</string>
@@ -73,7 +73,6 @@
     <!-- Settings Screen -->
     <string name="screen_settings">הגדרות</string>
     <string name="settings_keystore">מאגר מפתחות חתימה</string>
-    <string name="settings_keystore_default">מובנה</string>
     <string name="settings_keystore_custom">המותאם אישית</string>
     <string name="settings_keystore_dialog_title">מאגר מפתחות מותאם אישית</string>
     <string name="settings_keystore_file">קובץ מאגר מפתחות</string>

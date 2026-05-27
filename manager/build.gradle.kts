@@ -6,6 +6,7 @@ val verCode: Int by rootProject.extra
 val verName: String by rootProject.extra
 val coreVerCode: Int by rootProject.extra
 val coreVerName: String by rootProject.extra
+val miuixVersion = npatch.versions.miuix.get()
 
 plugins {
     alias(libs.plugins.agp.app)
@@ -23,7 +24,14 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = true
+            excludes += "lib/*/libandroidx.graphics.path.so"
+            excludes += "lib/*/libdatastore_shared_counter.so"
+        }
+        resources {
+            excludes += "kotlin/**"
+            excludes += "META-INF/androidx*"
+            excludes += "META-INF/androidx/**"
+            excludes += "DebugProbesKt.bin"
         }
     }
 
@@ -51,7 +59,7 @@ android {
         kotlinCompilerExtensionVersion = "1.5.15"
     }
 
-    namespace = "org.lsposed.npatch"
+    namespace = "top.nkbe.npatch"
 
     applicationVariants.all {
         kotlin.sourceSets {
@@ -72,6 +80,9 @@ afterEvaluate {
             dependsOn(":patch-loader:copy$variantCapped")
 
             val targetDir = layout.buildDirectory.dir("intermediates/assets/$variantLowered/merge${variantCapped}Assets")
+            doFirst {
+                delete(targetDir.map { it.file("npatch/loader.dex") })
+            }
             into(targetDir)
 
             from("${rootProject.projectDir}/out/assets/${variant.name}")
@@ -103,28 +114,41 @@ dependencies {
     implementation(npatch.androidx.compose.ui)
     implementation(npatch.androidx.compose.ui.tooling.preview)
     implementation(npatch.androidx.core.ktx)
+    implementation(libs.material)
+    implementation(npatch.androidx.datastore.preferences)
+    implementation(npatch.coil.compose)
+    implementation(libs.gson)
     implementation(npatch.androidx.lifecycle.viewmodel.compose)
-    implementation(npatch.androidx.navigation.compose)
+    implementation(npatch.androidx.navigation3.runtime)
+    implementation(npatch.androidx.navigation3.ui)
     implementation(libs.androidx.preference)
     implementation(npatch.androidx.room.ktx)
     implementation(npatch.androidx.room.runtime)
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
-    implementation(npatch.google.accompanist.navigation.animation)
-    implementation(npatch.google.accompanist.pager)
-    implementation(npatch.google.accompanist.swiperefresh)
     implementation(libs.material)
     implementation(libs.gson)
     implementation(npatch.rikka.shizuku.api)
     implementation(npatch.rikka.shizuku.provider)
     implementation(npatch.rikka.refine)
-    implementation(npatch.raamcosta.compose.destinations)
+    //implementation(npatch.raamcosta.compose.destinations)
     implementation(libs.appiconloader)
     implementation(libs.hiddenapibypass)
+
+    // MiuiX & Haze
+    implementation(npatch.haze)
+    implementation(npatch.hazeBlur)
+    implementation(npatch.backdrop)
+    implementation("top.yukonga.miuix.kmp:miuix-ui:$miuixVersion")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:$miuixVersion")
+    implementation("top.yukonga.miuix.kmp:miuix-icons:$miuixVersion")
+    implementation(npatch.androidx.webkit)
+
 
     annotationProcessor(npatch.androidx.room.compiler)
     compileOnly(npatch.rikka.hidden.stub)
     ksp(npatch.androidx.room.compiler)
-    ksp(npatch.raamcosta.compose.destinations.ksp)
+    //ksp(npatch.raamcosta.compose.destinations.ksp)
 
     debugImplementation(npatch.androidx.compose.ui.tooling)
     debugImplementation(npatch.androidx.customview)

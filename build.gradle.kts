@@ -24,39 +24,35 @@ buildscript {
     }
 }
 
-val commitCount = run {
+val commitCount = runCatching {
     val repo = FileRepository(rootProject.file(".git"))
-    val refId = repo.refDatabase.exactRef("refs/remotes/origin/main").objectId!!
-    Git(repo).log().add(refId).call().count()
-}
+    val refId = repo.refDatabase.exactRef("refs/remotes/origin/miuix")?.objectId
+    if (refId != null) Git(repo).log().add(refId).call().count() else 0
+}.getOrElse {0}
 
-val (coreCommitCount, coreLatestTag) = FileRepositoryBuilder().setGitDir(rootProject.file(".git/modules/core"))
-    .runCatching {
-        build().use { repo ->
+val (coreCommitCount, coreLatestTag) = runCatching {
+    FileRepositoryBuilder().setGitDir(rootProject.file("core/.git"))
+        .setWorkTree(rootProject.file("core"))
+        .build().use { repo ->
             val git = Git(repo)
-            val coreCommitCount =
-                git.log()
-                    .add(repo.refDatabase.exactRef("HEAD").objectId)
-                    .call().count()
-            val ver = git.describe()
-                .setTags(true)
-                .setAbbrev(0).call().removePrefix("v")
-            coreCommitCount to ver
+            val count = git.log().add(repo.resolve("HEAD")).call().count()
+            val ver = git.describe().setTags(true).setAbbrev(0).call()?.removePrefix("v") ?: "2.0"
+            count to ver
         }
-    }.getOrNull() ?: (3015 to "2.0")
+}.getOrNull() ?: (3045 to "2.0")
 
 // sync from https://github.com/JingMartix/LSPosed/blob/master/build.gradle.kts
-val defaultManagerPackageName by extra("org.lsposed.npatch")
-val apiCode by extra(100)
+val defaultManagerPackageName by extra("top.nkbe.npatch")
+val apiCode by extra(101)
 val verCode by extra(commitCount)
-val verName by extra("0.8.0")
+val verName by extra("1.0.5")
 val coreVerCode by extra(coreCommitCount)
 val coreVerName by extra(coreLatestTag)
 val androidMinSdkVersion by extra(28)
-val androidTargetSdkVersion by extra(36)
-val androidCompileSdkVersion by extra(36)
+val androidTargetSdkVersion by extra(37)
+val androidCompileSdkVersion by extra(37)
 val androidCompileNdkVersion by extra("29.0.13599879")
-val androidBuildToolsVersion by extra("36.1.0")
+val androidBuildToolsVersion by extra("37.0.0")
 val androidSourceCompatibility by extra(JavaVersion.VERSION_21)
 val androidTargetCompatibility by extra(JavaVersion.VERSION_21)
 
@@ -94,20 +90,35 @@ fun Project.configureBaseExtension() {
             versionName = verName
 
             signingConfigs.create("config") {
-                val androidStoreFile = project.findProperty("androidStoreFile") as String?
-                if (!androidStoreFile.isNullOrEmpty()) {
+                val androidStoreFile = (
+                    System.getenv("ANDROID_STORE_FILE")
+                        ?: project.findProperty("androidStoreFile")?.toString()
+                    )?.takeIf { it.isNotBlank() }
+                val androidStorePassword = System.getenv("ANDROID_STORE_PASSWORD")
+                    ?: project.findProperty("androidStorePassword")?.toString()
+                val androidKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                    ?: project.findProperty("androidKeyAlias")?.toString()
+                val androidKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                    ?: project.findProperty("androidKeyPassword")?.toString()
+
+                if (androidStoreFile != null && androidStorePassword != null && androidKeyAlias != null && androidKeyPassword != null) {
                     storeFile = rootProject.file(androidStoreFile)
-                    storePassword = project.property("androidStorePassword") as String
-                    keyAlias = project.property("androidKeyAlias") as String
-                    keyPassword = project.property("androidKeyPassword") as String
+                    storePassword = androidStorePassword
+                    keyAlias = androidKeyAlias
+                    keyPassword = androidKeyPassword
+                }
+
+                if (this is com.android.build.api.dsl.ApkSigningConfig) {
+                    enableV2Signing = true
+                    enableV3Signing = true
                 }
             }
 
             externalNativeBuild {
                 cmake {
+                    arguments += "-DVECTOR_ROOT=${File(rootDir.absolutePath, "core")}"
                     arguments += "-DEXTERNAL_ROOT=${File(rootDir.absolutePath, "core/external")}"
-                    arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, 
-                    "core/core/src/main/jni")}"
+                    arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, "core/native") }"
                     abiFilters("arm64-v8a", "x86_64")
                     val flags = arrayOf(
                         "-Wall",
@@ -156,7 +167,7 @@ fun Project.configureBaseExtension() {
                 }
             }
             named("release") {
-                signingConfig = null
+                signingConfig = if (signingConfigs["config"].storeFile != null) signingConfigs["config"] else signingConfigs["debug"]
                 externalNativeBuild {
                     cmake {
                         val flags = arrayOf(

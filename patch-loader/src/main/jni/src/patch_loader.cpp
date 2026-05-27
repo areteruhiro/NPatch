@@ -25,16 +25,46 @@
 
 #include "art/runtime/jit/profile_saver.h"
 #include "art/runtime/oat_file_manager.h"
-#include "elf_util.h"
-#include "jni/bypass_sig.h"
-#include "jni/bypass_svc.h"
 #include "native_util.h"
-#include "symbol_cache.h"
+#include "jni/bypass_sig.h"
+#include "jni/funpatch_seccomp.h"
+#include "elf/symbol_cache.h"
 #include "utils/jni_helper.hpp"
+
+#include <fcntl.h>
+#include <linux/memfd.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 using namespace lsplant;
 
 namespace lspd {
+
+    static int CreateDexMemFd(const void* data, size_t size) {
+#if defined(__linux__)
+        const int fd = syscall(__NR_memfd_create, "npatch_dex", MFD_CLOEXEC);
+        if (fd < 0) {
+            return -1;
+        }
+        if (ftruncate(fd, static_cast<off_t>(size)) != 0) {
+            close(fd);
+            return -1;
+        }
+        if (size > 0 && write(fd, data, size) != static_cast<ssize_t>(size)) {
+            close(fd);
+            return -1;
+        }
+        if (lseek(fd, 0, SEEK_SET) < 0) {
+            close(fd);
+            return -1;
+        }
+        return fd;
+#else
+        (void)data;
+        (void)size;
+        return -1;
+#endif
+    }
 
     void PatchLoader::LoadDex(JNIEnv* env, Context::PreloadedDex&& dex) {
         auto class_activity_thread = JNI_FindClass(env, "android/app/ActivityThread");
@@ -79,11 +109,11 @@ namespace lspd {
     void PatchLoader::InitHooks(JNIEnv* env) {
         Context::InitHooks(env);
         RegisterBypass(env);
-        RegisterSvcBypass(env);
+        RegisterFunPatchSeccomp(env);
     }
 
     void PatchLoader::SetupEntryClass(JNIEnv* env) {
-        ScopedLocalRef<jclass> entry_class(FindClassFromLoader(env, GetCurrentClassLoader(), "org.lsposed.npatch.loader.LSPApplication"));
+        ScopedLocalRef<jclass> entry_class(FindClassFromLoader(env, GetCurrentClassLoader(), "top.nkbe.npatch.loader.LSPApplication"));
         if (entry_class) {
             entry_class_ = JNI_NewGlobalRef(env, entry_class.get());
         } else {
@@ -104,7 +134,7 @@ namespace lspd {
                 [](auto symbol) { return GetArt()->getSymbPrefixFirstAddress(symbol); },
         };
 
-        auto stub = JNI_FindClass(env, "org/lsposed/npatch/metaloader/LSPAppComponentFactoryStub");
+        auto stub = JNI_FindClass(env, "top/nkbe/npatch/metaloader/LSPAppComponentFactoryStub");
         auto dex_field = JNI_GetStaticFieldID(env, stub, "dex", "[B");
         ScopedLocalRef<jbyteArray> array = JNI_GetStaticObjectField(env, stub, dex_field);
 
@@ -113,7 +143,17 @@ namespace lspd {
             return;
         }
 
-        auto dex = PreloadedDex{env->GetByteArrayElements(array.get(), nullptr), static_cast<size_t>(JNI_GetArrayLength(env, array.get()))};
+        auto* dex_bytes = env->GetByteArrayElements(array.get(), nullptr);
+        const auto dex_size = static_cast<size_t>(JNI_GetArrayLength(env, array.get()));
+        const int dex_fd = CreateDexMemFd(dex_bytes, dex_size);
+        env->ReleaseByteArrayElements(array.get(), dex_bytes, JNI_ABORT);
+        if (dex_fd < 0) {
+            LOGE("Failed to create dex memfd.");
+            return;
+        }
+
+        PreloadedDex dex(dex_fd, dex_size);
+        close(dex_fd);
 
         InitArtHooker(env, initInfo);
         LoadDex(env, std::move(dex));
