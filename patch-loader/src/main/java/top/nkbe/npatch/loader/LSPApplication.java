@@ -24,7 +24,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.lsposed.lspd.models.Module;
 import org.lsposed.lspd.service.ILSPApplicationService;
-import org.matrix.vector.Startup;
+import org.lsposed.lspd.core.Startup;
 import top.nkbe.npatch.loader.util.XLog;
 import top.nkbe.npatch.service.IntegrApplicationService;
 import top.nkbe.npatch.service.NeoLocalApplicationService;
@@ -200,7 +200,7 @@ public class LSPApplication {
         registerModuleCallerPrefixes(service);
         disableProfile(context);
         Startup.initXposed(false, ActivityThread.currentProcessName(), context.getApplicationInfo().dataDir, service);
-        Startup.bootstrapXposed(false);
+        Startup.bootstrapXposed();
 
         // WARN: Since it uses `XResource`, the following class should not be initialized
         // before forkPostCommon is invoke. Otherwise, you will get failure of XResources

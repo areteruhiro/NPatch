@@ -8,6 +8,7 @@ ksp = "2.3.7"
 commons-io = "2.20.0"
 beust-jcommander = "1.82"
 google-gson = "2.13.1"
+bouncycastle = "1.81"
 core-ktx = "1.17.0"
 miuix = "0.9.1"
 haze = "2.0.0-alpha01"
@@ -58,6 +59,7 @@ rikka-hidden-stub = { module = "dev.rikka.hidden:stub", version.ref = "hiddenapi
 commons-io = { module = "commons-io:commons-io", version.ref = "commons-io" }
 beust-jcommander = { module = "com.beust:jcommander", version.ref = "beust-jcommander" }
 google-gson = { module = "com.google.code.gson:gson", version.ref = "google-gson" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 hazeBlur = { module = "dev.chrisbanes.haze:haze-blur", version.ref = "haze" }
 backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }

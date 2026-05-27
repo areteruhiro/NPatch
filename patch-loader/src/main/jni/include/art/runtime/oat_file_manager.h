@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "native_util.h"
-#include "core/context.h"
+#include "context.h"
 #include "utils/hook_helper.hpp"
 
 using namespace lsplant;

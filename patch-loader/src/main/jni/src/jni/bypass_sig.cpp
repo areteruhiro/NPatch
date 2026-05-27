@@ -6,9 +6,9 @@
 #include "bypass_sig.h"
 
 #include "native_util.h"
-#include "core/native_api.h"
-#include "common/logging.h"
-#include "core/context.h"
+#include "native_api.h"
+#include "logging.h"
+#include "context.h"
 #include "patch_loader.h"
 #include "utils/hook_helper.hpp"
 #include "utils/jni_helper.hpp"

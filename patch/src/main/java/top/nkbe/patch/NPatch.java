@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +51,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
 public class NPatch {
 
     private static final String NPATCH_KEYSTORE_PASSWORD_ENC = "a2hpbm9s";
@@ -57,6 +60,7 @@ public class NPatch {
     private static final String FPA_KEYSTORE_PASSWORD_ENC = "a2hpbm9sbWI=";
     private static final String FPA_KEY_ALIAS_ENC = "Oyoq";
     private static final int SECRET_XOR_KEY = 0x5a;
+    private static final Provider BOUNCY_CASTLE_PROVIDER = new BouncyCastleProvider();
 
     static class PatchError extends Error {
         public PatchError(String message, Throwable cause) {
@@ -191,6 +195,7 @@ public class NPatch {
             npatch.doCommandLine();
         } catch (PatchError e) {
             e.printStackTrace(System.err);
+            System.exit(1);
         }
     }
 
@@ -231,22 +236,26 @@ public class NPatch {
 
         boolean embedOriginal = sigbypassLevel >= Constants.SIGBYPASS_BASIC;
 
-        try (ZFile dstZFile = ZFile.openReadWrite(outputFile, Z_FILE_OPTIONS);
-             ZFile srcZFile = embedOriginal
-                     ? dstZFile.addNestedZip((ignore) -> Constants.ORIGINAL_APK_ASSET_PATH, srcApkFile, false)
-                     : ZFile.openReadOnly(srcApkFile)) {
+        boolean success = false;
+        try {
+            try (ZFile dstZFile = ZFile.openReadWrite(outputFile, Z_FILE_OPTIONS);
+                 ZFile srcZFile = embedOriginal
+                         ? dstZFile.addNestedZip((ignore) -> Constants.ORIGINAL_APK_ASSET_PATH, srcApkFile, false)
+                         : ZFile.openReadOnly(srcApkFile)) {
 
             // sign apk
             try {
-                var keyStore = KeyStore.getInstance("BKS");
                 if (useNpatchKeystore || (!useFpaKeystore && keystoreArgs == null)) {
                     logger.i("Register apk signer with built-in NPatch keystore...");
+                    var keyStore = KeyStore.getInstance("BKS", BOUNCY_CASTLE_PROVIDER);
                     registerBuiltinSigner(keyStore, dstZFile, "assets/npatch.key", NPATCH_KEYSTORE_PASSWORD_ENC, NPATCH_KEY_ALIAS_ENC);
                 } else if (useFpaKeystore) {
                     logger.i("Register apk signer with built-in FPA keystore...");
+                    var keyStore = KeyStore.getInstance("BKS", BOUNCY_CASTLE_PROVIDER);
                     registerBuiltinSigner(keyStore, dstZFile, "assets/fpa_app.key", FPA_KEYSTORE_PASSWORD_ENC, FPA_KEY_ALIAS_ENC);
                 } else if (keystoreArgs != null) {
                     logger.i("Register apk signer with custom keystore...");
+                    var keyStore = KeyStore.getInstance(detectKeyStoreType(keystoreArgs.get(0)));
                     try (var is = new FileInputStream(keystoreArgs.get(0))) {
                         keyStore.load(is, keystoreArgs.get(1).toCharArray());
                     }
@@ -431,8 +440,31 @@ public class NPatch {
 
             dstZFile.realign();
             logger.i("Writing apk...");
+            }
+            success = true;
+        } finally {
+            if (!success) {
+                // Avoid leaving an installable-looking partial APK, for example one
+                // containing only assets/npatch/origin.apk after an early failure.
+                //noinspection ResultOfMethodCallIgnored
+                outputFile.delete();
+            }
         }
         logger.i("Done. Output APK: " + outputFile.getAbsolutePath());
+    }
+
+    private static String detectKeyStoreType(String path) {
+        if (path == null) {
+            return KeyStore.getDefaultType();
+        }
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        if (lowerPath.endsWith(".p12") || lowerPath.endsWith(".pfx")) {
+            return "PKCS12";
+        }
+        if (lowerPath.endsWith(".jks") || lowerPath.endsWith(".keystore")) {
+            return "JKS";
+        }
+        return KeyStore.getDefaultType();
     }
 
     private static boolean isApkSignatureEntry(String name) {
@@ -532,7 +564,9 @@ public class NPatch {
         property.addApplicationAttribute(new AttributeItem("isSplitRequired", false));
 
         if (!targetPackage.equals(originPackage)) {
+            logger.i("Manifest package rewrite: " + originPackage + " -> " + targetPackage);
             property.addManifestAttribute(new AttributeItem(NodeValue.Manifest.PACKAGE, targetPackage).setNamespace(null));
+            property.setPermissionMapper((type, permission) -> mapPackageManifestName(type, permission, originPackage, targetPackage));
         }
 
         modules.forEach(module -> {
@@ -582,5 +616,45 @@ public class NPatch {
         } finally {
             if (is != null) is.close();
         }
+    }
+
+    private String mapPackageManifestName(Object type, String name, String originPackage, String targetPackage) {
+        if (name == null || originPackage == null || targetPackage == null) {
+            return name;
+        }
+        if (name.startsWith("android.")
+                || name.startsWith("com.android.")
+                || name.startsWith("com.google.android.")
+                || isCloudMessagingName(name)) {
+            return name;
+        }
+        if (name.equals(originPackage)) {
+            logManifestNameRewrite(type, name, targetPackage);
+            return targetPackage;
+        }
+        String originPrefix = originPackage + ".";
+        if (name.startsWith(originPrefix)) {
+            String mapped = targetPackage + name.substring(originPackage.length());
+            logManifestNameRewrite(type, name, mapped);
+            return mapped;
+        }
+        return name;
+    }
+
+    private void logManifestNameRewrite(Object type, String before, String after) {
+        logger.i("Manifest " + describeManifestRewriteType(type) + " rewrite: " + before + " -> " + after);
+    }
+
+    private static String describeManifestRewriteType(Object type) {
+        if (type == null) {
+            return "name";
+        }
+        String text = type.toString();
+        return text.isEmpty() ? "name" : text;
+    }
+
+    private static boolean isCloudMessagingName(String name) {
+        return name.contains(".c2dm.permission.")
+                || name.contains(".c2dm.intent.");
     }
 }

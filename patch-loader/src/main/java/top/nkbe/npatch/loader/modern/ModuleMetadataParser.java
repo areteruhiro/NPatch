@@ -5,7 +5,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
-import org.matrix.vector.impl.utils.VectorMetaDataReader;
+import org.lsposed.lspd.util.MetaDataReader;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -156,7 +156,7 @@ public final class ModuleMetadataParser {
 
     private Map<String, Object> readLegacyMetadata(File apkFile) {
         try {
-            return VectorMetaDataReader.getMetaData(apkFile);
+            return MetaDataReader.getMetaData(apkFile);
         } catch (Throwable ignored) {
             return Collections.emptyMap();
         }

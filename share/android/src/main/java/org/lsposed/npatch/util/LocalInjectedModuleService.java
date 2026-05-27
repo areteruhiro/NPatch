@@ -22,7 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class LocalInjectedModuleService extends ILSPInjectedModuleService.Stub {
-    private static final long PROP_CAP_REMOTE = 1L << 1;
+    private static final int FRAMEWORK_PRIVILEGE_EMBEDDED = 3;
 
     private static final class CallbackState {
         final IRemotePreferenceCallback callback;
@@ -57,8 +57,8 @@ public final class LocalInjectedModuleService extends ILSPInjectedModuleService.
     }
 
     @Override
-    public long getFrameworkProperties() {
-        return PROP_CAP_REMOTE;
+    public int getFrameworkPrivilege() {
+        return FRAMEWORK_PRIVILEGE_EMBEDDED;
     }
 
     @Override

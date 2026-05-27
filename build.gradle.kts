@@ -26,9 +26,9 @@ buildscript {
 
 val commitCount = runCatching {
     val repo = FileRepository(rootProject.file(".git"))
-    val refId = repo.refDatabase.exactRef("refs/remotes/origin/miuix")?.objectId
-    if (refId != null) Git(repo).log().add(refId).call().count() else 0
-}.getOrElse {0}
+    val refId = repo.refDatabase.exactRef("refs/remotes/origin/miuix")?.objectId ?: repo.resolve("HEAD")
+    if (refId != null) Git(repo).log().add(refId).call().count() else 1
+}.getOrElse {1}
 
 val (coreCommitCount, coreLatestTag) = runCatching {
     FileRepositoryBuilder().setGitDir(rootProject.file("core/.git"))
@@ -118,7 +118,7 @@ fun Project.configureBaseExtension() {
                 cmake {
                     arguments += "-DVECTOR_ROOT=${File(rootDir.absolutePath, "core")}"
                     arguments += "-DEXTERNAL_ROOT=${File(rootDir.absolutePath, "core/external")}"
-                    arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, "core/native") }"
+                    arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, "core/core/src/main/jni") }"
                     abiFilters("arm64-v8a", "x86_64")
                     val flags = arrayOf(
                         "-Wall",

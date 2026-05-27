@@ -37,12 +37,11 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import dalvik.system.PathClassLoader;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface;
+import org.lsposed.lspd.core.ApplicationServiceClient;
+import org.lsposed.lspd.impl.LSPosedContext;
 import org.lsposed.lspd.models.Module;
+import org.lsposed.lspd.nativebridge.NativeAPI;
 import org.lsposed.lspd.service.ILSPApplicationService;
-import org.matrix.vector.impl.VectorContext;
-import org.matrix.vector.impl.VectorLifecycleManager;
-import org.matrix.vector.impl.core.VectorServiceClient;
-import org.matrix.vector.nativebridge.NativeAPI;
 
 public class LSPLoader {
     private static final String TAG = "NPatch-Loader";
@@ -71,11 +70,9 @@ public class LSPLoader {
 
     private static void registerModuleRuntimeAppInfos() {
         try {
-            Field serviceField = VectorServiceClient.class.getDeclaredField("service");
-            serviceField.setAccessible(true);
-            Object current = serviceField.get(VectorServiceClient.INSTANCE);
-            if (!(current instanceof ILSPApplicationService service)) {
-                Log.w(TAG, "VectorServiceClient service is not ready for module path compatibility");
+            ApplicationServiceClient service = getServiceClient();
+            if (service == null) {
+                Log.w(TAG, "ApplicationServiceClient is not ready for module path compatibility");
                 return;
             }
 
@@ -155,24 +152,44 @@ public class LSPLoader {
 
     private static void installNativeModuleServiceProxy() {
         try {
-            Field serviceField = VectorServiceClient.class.getDeclaredField("service");
-            serviceField.setAccessible(true);
-
-            Object current = serviceField.get(VectorServiceClient.INSTANCE);
+            Object current = getCurrentService();
             if (!(current instanceof ILSPApplicationService)) {
-                Log.w(TAG, "VectorServiceClient service is not ready for native module proxy");
+                Log.w(TAG, "ApplicationServiceClient service is not ready for native module proxy");
                 return;
             }
             if (current instanceof NativeModuleFilteringService) {
                 return;
             }
 
-            serviceField.set(VectorServiceClient.INSTANCE,
-                    new NativeModuleFilteringService((ILSPApplicationService) current));
+            setCurrentService(new NativeModuleFilteringService((ILSPApplicationService) current));
             Log.i(TAG, "Installed native module service proxy");
         } catch (Throwable e) {
             Log.e(TAG, "Failed to install native module service proxy", e);
         }
+    }
+
+    private static ApplicationServiceClient getServiceClient() {
+        return ApplicationServiceClient.serviceClient;
+    }
+
+    private static Object getCurrentService() throws ReflectiveOperationException {
+        ApplicationServiceClient client = getServiceClient();
+        if (client == null) {
+            return null;
+        }
+        Field serviceField = ApplicationServiceClient.class.getDeclaredField("service");
+        serviceField.setAccessible(true);
+        return serviceField.get(client);
+    }
+
+    private static void setCurrentService(ILSPApplicationService service) throws ReflectiveOperationException {
+        ApplicationServiceClient client = getServiceClient();
+        if (client == null) {
+            return;
+        }
+        Field serviceField = ApplicationServiceClient.class.getDeclaredField("service");
+        serviceField.setAccessible(true);
+        serviceField.set(client, service);
     }
 
     private static final class NativeModuleFilteringService extends ILSPApplicationService.Stub {
@@ -263,44 +280,14 @@ public class LSPLoader {
             ClassLoader initLoader = XposedModule.class.getClassLoader();
             PathClassLoader moduleClassLoader = new PathClassLoader(module.apkPath, librarySearchPath, initLoader);
 
-            VectorContext vectorContext = new VectorContext(
-                    module.packageName,
-                    moduleAppInfo,
-                    module.service != null ? module.service : getEmptyService()
-            );
-
             for (String libName : discoverNativeLibraries(module)) {
                 NativeAPI.recordNativeEntrypoint(libName);
-                for (String candidate : buildNativeInitCandidates(module, nativeDir, libName)) {
-                    if (NativeAPI.initializeNativeEntrypoint(libName, candidate)) {
-                        Log.i(TAG, "Prepared native library " + libName + " from " + candidate);
-                        break;
-                    }
-                }
+                Log.i(TAG, "Recorded native library entrypoint " + libName);
             }
 
-            if (module.file != null && module.file.moduleClassNames != null) {
-                for (String className : module.file.moduleClassNames) {
-                    Class<?> moduleClass = moduleClassLoader.loadClass(className);
-                    if (XposedModule.class.isAssignableFrom(moduleClass)) {
-                        Constructor<?> ctor = moduleClass.getDeclaredConstructor();
-                        ctor.setAccessible(true);
-                        XposedModule instance = (XposedModule) ctor.newInstance();
-
-                        instance.attachFramework(vectorContext);
-
-                        VectorLifecycleManager.INSTANCE.getActiveModules().add(instance);
-
-                        instance.onModuleLoaded(new XposedModuleInterface.ModuleLoadedParam() {
-                            @Override public boolean isSystemServer() { return isSystemServer; }
-                            @Override public String getProcessName() { return processName; }
-                        });
-                    }
-                }
-            }
-
-            Log.d(TAG, "Enhanced load successful for " + module.packageName);
-            return true;
+            boolean loaded = LSPosedContext.loadModule(ActivityThread.currentActivityThread(), module);
+            Log.d(TAG, "Enhanced load " + (loaded ? "successful" : "failed") + " for " + module.packageName);
+            return loaded;
         } catch (Throwable e) {
             Log.e(TAG, "Enhanced load failed for " + module.packageName, e);
             return false;
@@ -454,32 +441,38 @@ public class LSPLoader {
         } catch (Throwable ignored) { return null; }
     }
 
-    private static org.lsposed.lspd.service.ILSPInjectedModuleService getEmptyService() {
-        try {
-            Class<?> clazz = Class.forName("org.matrix.vector.impl.core.VectorModuleManager$EmptyInjectedModuleService");
-            return (org.lsposed.lspd.service.ILSPInjectedModuleService) XposedHelpers.getStaticObjectField(clazz, "INSTANCE");
-        } catch (Throwable ignored) { return null; }
-    }
-
     private static void dispatchModernLifecycle(LoadedApk loadedApk) {
         try {
             String packageName = loadedApk.getPackageName();
             ApplicationInfo appInfo = loadedApk.getApplicationInfo();
             ClassLoader classLoader = loadedApk.getClassLoader();
-            Object appComponentFactory = createAppComponentFactory(appInfo, classLoader);
 
-            VectorLifecycleManager.INSTANCE.dispatchPackageLoaded(
-                    packageName,
-                    appInfo,
-                    true,
-                    classLoader);
-            VectorLifecycleManager.INSTANCE.dispatchPackageReady(
-                    packageName,
-                    appInfo,
-                    true,
-                    classLoader,
-                    classLoader,
-                    appComponentFactory);
+            LSPosedContext.callOnPackageLoaded(new XposedModuleInterface.PackageLoadedParam() {
+                @Override
+                public String getPackageName() {
+                    return packageName;
+                }
+
+                @Override
+                public ApplicationInfo getApplicationInfo() {
+                    return appInfo;
+                }
+
+                @Override
+                public ClassLoader getDefaultClassLoader() {
+                    return classLoader;
+                }
+
+                @Override
+                public ClassLoader getClassLoader() {
+                    return classLoader;
+                }
+
+                @Override
+                public boolean isFirstPackage() {
+                    return true;
+                }
+            });
         } catch (Throwable e) {
             Log.e(TAG, "Failed to dispatch modern Xposed lifecycle", e);
         }

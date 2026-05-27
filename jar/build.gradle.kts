@@ -19,6 +19,7 @@ dependencies {
 fun Jar.configure(variant: String) {
     archiveBaseName.set("jar-v$verName-$verCode-$variant")
     destinationDirectory.set(file("${rootProject.projectDir}/out/$variant"))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes("Main-Class" to "top.nkbe.npatch.patch.NPatch")
     }

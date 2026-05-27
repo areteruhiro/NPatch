@@ -1,7 +1,7 @@
 #include "funpatch_seccomp.h"
 
-#include "common/logging.h"
-#include "core/native_api.h"
+#include "logging.h"
+#include "native_api.h"
 #include "native_util.h"
 #include "utils/jni_helper.hpp"
 

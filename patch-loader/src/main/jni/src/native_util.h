@@ -6,18 +6,15 @@
 #include <string>
 #include <string_view>
 
-#include "core/config_bridge.h"
-#include "core/context.h"
-#include "core/native_api.h"
-#include "elf/elf_image.h"
-#include "elf/symbol_cache.h"
+#include "config_bridge.h"
+#include "context.h"
+#include "native_api.h"
+#include "elf_util.h"
+#include "symbol_cache.h"
 #include "utils/hook_helper.hpp"
 #include "utils/jni_helper.hpp"
 
 namespace lspd {
-
-using Context = vector::native::Context;
-using ConfigBridge = vector::native::ConfigBridge;
 
 [[gnu::always_inline]] inline bool RegisterNativeMethodsInternal(
     JNIEnv *env,
@@ -30,26 +27,6 @@ using ConfigBridge = vector::native::ConfigBridge;
         return false;
     }
     return JNI_RegisterNatives(env, clazz, methods, method_count);
-}
-
-inline int HookInline(void *func, void *replace, void **backup) {
-    return vector::native::HookInline(func, replace, backup);
-}
-
-inline int UnhookInline(void *func) {
-    return vector::native::UnhookInline(func);
-}
-
-inline const vector::native::ElfImage *GetArt(bool release = false) {
-    const auto *image = vector::native::ElfSymbolCache::GetArt();
-    if (release && image != nullptr) {
-        vector::native::ElfSymbolCache::ClearCache(image);
-    }
-    return image;
-}
-
-inline int GetAndroidApiLevel() {
-    return android_get_device_api_level();
 }
 
 inline std::string GetNativeBridgeSignature() {

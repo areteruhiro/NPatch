@@ -24,11 +24,11 @@
 #pragma once
 
 #include <string>
-#include "core/config_bridge.h"
+#include "config_bridge.h"
 
 namespace lspd {
 
-    class ConfigImpl : public vector::native::ConfigBridge {
+    class ConfigImpl : public ConfigBridge {
     public:
         inline static void Init() {
             instance_ = std::make_unique<ConfigImpl>();
@@ -54,4 +54,3 @@ namespace lspd {
         };
     };
 }
-

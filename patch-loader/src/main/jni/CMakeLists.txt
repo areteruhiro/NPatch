@@ -18,6 +18,7 @@ add_library(${PROJECT_NAME} SHARED ${SRC_LIST})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CORE_ROOT}/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CORE_ROOT}/src)
 target_include_directories(${PROJECT_NAME} PRIVATE ${EXTERNAL_ROOT}/fmt/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${EXTERNAL_ROOT}/dobby/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${EXTERNAL_ROOT}/lsplant/lsplant/src/main/jni/include)
@@ -25,7 +26,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         VERSION_CODE=${VERSION_CODE}
         VERSION_NAME=\"${VERSION_NAME}\")
 
-target_link_libraries(${PROJECT_NAME} native log)
+target_link_libraries(${PROJECT_NAME} core log)
 
 if (DEFINED DEBUG_SYMBOLS_PATH)
     set(DEBUG_SYMBOLS_PATH ${DEBUG_SYMBOLS_PATH}/${API})

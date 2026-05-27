@@ -10,7 +10,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, "core/native") }"
+                arguments += "-DCORE_ROOT=${File(rootDir.absolutePath, "core/core/src/main/jni") }"
                 arguments += "-DEXTERNAL_ROOT=${File(rootDir.absolutePath, "core/external") }"
                 arguments += "-DVERSION_CODE=${rootProject.extra["verCode"]}"
                 arguments += "-DVERSION_NAME=${rootProject.extra["verName"]}"

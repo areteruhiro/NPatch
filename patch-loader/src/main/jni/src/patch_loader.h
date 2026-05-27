@@ -23,13 +23,13 @@
 
 #pragma once
 
-#include "core/context.h"
+#include "context.h"
 
 namespace lspd {
 
     inline lsplant::InitInfo handler;
 
-    class PatchLoader : public vector::native::Context {
+    class PatchLoader : public Context {
     public:
         inline static void Init() {
             instance_ = std::make_unique<PatchLoader>();
@@ -46,7 +46,7 @@ namespace lspd {
 
         void InitHooks(JNIEnv* env) override;
 
-        void LoadDex(JNIEnv* env, vector::native::Context::PreloadedDex&& dex) override;
+        void LoadDex(JNIEnv* env, Context::PreloadedDex&& dex) override;
 
         void SetupEntryClass(JNIEnv* env) override;
     };
